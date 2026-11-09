@@ -1,0 +1,33 @@
+# syntax=docker/dockerfile:1
+# ============================================================================
+# 固件发布镜像
+# 内含：固件二进制（merged-binary.bin 及各分区镜像）+ esptool 烧录工具
+# 用途：从 ACR 拉取后，在内网环境对 ESP32-S3 设备进行 USB 烧录
+# ============================================================================
+
+FROM python:3.12-slim
+
+LABEL org.opencontainers.image.title="open-esp32-firmware" \
+      org.opencontainers.image.description="XiaoZhi AI firmware release package with esptool" \
+      org.opencontainers.image.source="https://github.com/MrLiuGangQiang/open-esp32-firmware" \
+      org.opencontainers.image.licenses="MIT"
+
+ENV PYTHONUNBUFFERED=1 \
+    FIRMWARE_DIR=/opt/firmware
+
+# 安装 esptool（优先阿里云 PyPI 镜像，官方源兜底）
+RUN pip install --no-cache-dir esptool \
+      --index-url https://mirrors.aliyun.com/pypi/simple/ \
+      --extra-index-url https://pypi.org/simple/ \
+    && esptool version
+
+ARG FIRMWARE_RELEASE_DIR=firmware-release
+COPY ${FIRMWARE_RELEASE_DIR}/ ${FIRMWARE_DIR}/
+COPY docker/flash.sh /usr/local/bin/flash-firmware
+
+RUN chmod +x /usr/local/bin/flash-firmware \
+    && ls -lah "${FIRMWARE_DIR}"
+
+WORKDIR ${FIRMWARE_DIR}
+ENTRYPOINT ["flash-firmware"]
+CMD ["info"]
