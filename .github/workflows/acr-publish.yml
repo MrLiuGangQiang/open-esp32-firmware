@@ -14,6 +14,10 @@ on:
         description: "板型构建变体名称"
         required: false
         default: "lichuang-dev"
+      version:
+        description: "镜像版本号（仅手动触发时使用）"
+        required: false
+        default: "dev"
   push:
     tags:
       - "v*"
@@ -47,8 +51,10 @@ jobs:
         run: |
           if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
             VERSION="${GITHUB_REF_NAME#v}"
+          elif [[ -n "${{ inputs.version }}" ]]; then
+            VERSION="${{ inputs.version }}"
           else
-            VERSION="$(date +%Y%m%d%H%M)-${GITHUB_SHA:0:7}"
+            VERSION="dev"
           fi
           echo "version=${VERSION}" >> "${GITHUB_OUTPUT}"
 
@@ -119,8 +125,6 @@ jobs:
           images: ${{ env.ACR_REGISTRY }}/${{ env.ACR_IMAGE }}
           tags: |
             type=raw,value=${{ needs.build-firmware.outputs.version }}
-            type=raw,value=latest,enable=${{ github.ref_type == 'branch' }}
-            type=sha,prefix=sha-,format=short
 
       - name: Build and push firmware image
         uses: docker/build-push-action@v6
