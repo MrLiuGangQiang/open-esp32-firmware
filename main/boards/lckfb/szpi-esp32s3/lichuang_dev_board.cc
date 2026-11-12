@@ -9,6 +9,7 @@
 #include "esp32_camera.h"
 #include "mcp_server.h"
 #include "press_to_talk_mcp_tool.h"
+#include "power_save_timer.h"
 
 #include <esp_log.h>
 #include <esp_lcd_panel_vendor.h>
@@ -68,6 +69,49 @@ private:
     Pca9557* pca9557_;
     Esp32Camera* camera_;
     PressToTalkMcpTool* press_to_talk_tool_ = nullptr;
+    PowerSaveTimer* power_save_timer_ = nullptr;
+    lv_indev_t* touch_indev_ = nullptr;
+    bool display_sleeping_ = false;
+    bool wake_from_sleep_press_ = false;
+
+    void SetDisplaySleep(bool sleeping) {
+        if (display_sleeping_ == sleeping) {
+            return;
+        }
+        display_sleeping_ = sleeping;
+        GetDisplay()->SetPowerSaveMode(sleeping);
+        if (sleeping) {
+            GetBacklight()->SetBrightness(0);
+        } else {
+            GetBacklight()->RestoreBrightness();
+        }
+    }
+
+    void WakeDisplay() {
+        if (power_save_timer_ != nullptr) {
+            power_save_timer_->WakeUp();
+        } else {
+            SetDisplaySleep(false);
+        }
+    }
+
+    static void TouchWakeCallback(lv_event_t* event) {
+        auto* board = static_cast<LichuangDevBoard*>(lv_event_get_user_data(event));
+        if (board != nullptr && board->display_sleeping_) {
+            board->WakeDisplay();
+        }
+    }
+
+    void InitializePowerSaveTimer() {
+        power_save_timer_ = new PowerSaveTimer(-1, 60, -1);
+        power_save_timer_->OnEnterSleepMode([this]() {
+            SetDisplaySleep(true);
+        });
+        power_save_timer_->OnExitSleepMode([this]() {
+            SetDisplaySleep(false);
+        });
+        power_save_timer_->SetEnabled(true);
+    }
 
     void InitializeI2c() {
         // Initialize I2C peripheral
@@ -223,7 +267,10 @@ private:
         };
 
         if(touch_cfg.disp) {
-            lvgl_port_add_touch(&touch_cfg);
+            touch_indev_ = lvgl_port_add_touch(&touch_cfg);
+            if (touch_indev_ != nullptr) {
+                lv_indev_add_event_cb(touch_indev_, TouchWakeCallback, LV_EVENT_PRESSED, this);
+            }
         } else {
             ESP_LOGE(TAG, "Touch display is not initialized");
         }
@@ -280,10 +327,11 @@ private:
     }
 
 public:
-    LichuangDevBoard() : boot_button_(BOOT_BUTTON_GPIO) {
+    LichuangDevBoard() : boot_button_(BOOT_BUTTON_GPIO, false, 2000) {
         InitializeI2c();
         InitializeSpi();
         InitializeSt7789Display();
+        InitializePowerSaveTimer();
         InitializeTouch();
         InitializeButtons();
         InitializeCamera();

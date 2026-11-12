@@ -20,6 +20,9 @@ public:
     // sleep mode rearms the request. A callback that declines a request must own
     // any retry or explicitly start a new idle cycle; returning does not retry.
     void OnShutdownRequest(std::function<void()> callback);
+    // Enter sleep mode immediately if the application is idle. This keeps the
+    // timer's internal state consistent with board-side display sleep.
+    void RequestSleepNow();
     // Reset the idle countdown and shutdown request, and exit sleep mode if active.
     void WakeUp();
 
