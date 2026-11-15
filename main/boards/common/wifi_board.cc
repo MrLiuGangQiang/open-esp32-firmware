@@ -23,27 +23,9 @@
 
 static const char *TAG = "WifiBoard";
 
-// Connection timeout in seconds
-static constexpr int CONNECT_TIMEOUT_SEC = 60;
+WifiBoard::WifiBoard() = default;
 
-WifiBoard::WifiBoard() {
-    // Create connection timeout timer
-    esp_timer_create_args_t timer_args = {
-        .callback = OnWifiConnectTimeout,
-        .arg = this,
-        .dispatch_method = ESP_TIMER_TASK,
-        .name = "wifi_connect_timer",
-        .skip_unhandled_events = true
-    };
-    esp_timer_create(&timer_args, &connect_timer_);
-}
-
-WifiBoard::~WifiBoard() {
-    if (connect_timer_) {
-        esp_timer_stop(connect_timer_);
-        esp_timer_delete(connect_timer_);
-    }
-}
+WifiBoard::~WifiBoard() = default;
 
 std::string WifiBoard::GetBoardType() {
     return "wifi";
@@ -58,6 +40,13 @@ void WifiBoard::StartNetwork() {
     config.language = Lang::CODE;
     config.show_ota_config = true;
     config.show_sleep_config = true;
+
+    // Keep retrying at a useful cadence while waiting for a phone hotspot or an
+    // intermittently available network to appear. The station keeps scanning
+    // after failures, so WifiBoard intentionally does not enter config mode on
+    // a fixed startup timeout.
+    config.station_scan_min_interval_seconds = 10;
+    config.station_scan_max_interval_seconds = 30;
 
     // Set a DHCP hostname so the router shows a friendly name instead of "espressif".
     // Uses the same "<prefix>-<last 2 MAC bytes>" scheme as the config AP SSID.
@@ -102,9 +91,10 @@ void WifiBoard::TryWifiConnect() {
     bool have_ssid = !ssid_manager.GetSsidList().empty();
 
     if (have_ssid) {
-        // Start connection attempt with timeout
-        ESP_LOGI(TAG, "Starting WiFi connection attempt");
-        esp_timer_start_once(connect_timer_, CONNECT_TIMEOUT_SEC * 1000000ULL);
+        // WifiStation owns retry/scan scheduling. Do not replace an active
+        // retry loop with config AP after 60 seconds; this is required for a
+        // saved phone hotspot that is switched on later.
+        ESP_LOGI(TAG, "Starting persistent WiFi connection attempt");
         WifiManager::GetInstance().StartStation();
     } else {
         // No SSID configured, enter config mode
@@ -117,8 +107,6 @@ void WifiBoard::TryWifiConnect() {
 void WifiBoard::OnNetworkEvent(NetworkEvent event, const std::string& data) {
     switch (event) {
         case NetworkEvent::Connected:
-            // Stop timeout timer
-            esp_timer_stop(connect_timer_);
 #ifdef CONFIG_USE_ESP_BLUFI_WIFI_PROVISIONING
             // make sure blufi resources has been released
             Blufi::GetInstance().deinit();
@@ -157,14 +145,6 @@ void WifiBoard::OnNetworkEvent(NetworkEvent event, const std::string& data) {
 
 void WifiBoard::SetNetworkEventCallback(NetworkEventCallback callback) {
     network_event_callback_ = std::move(callback);
-}
-
-void WifiBoard::OnWifiConnectTimeout(void* arg) {
-    auto* board = static_cast<WifiBoard*>(arg);
-    ESP_LOGW(TAG, "WiFi connection timeout, entering config mode");
-
-    WifiManager::GetInstance().StopStation();
-    board->StartWifiConfigMode();
 }
 
 void WifiBoard::StartWifiConfigMode() {
@@ -210,8 +190,6 @@ void WifiBoard::EnterWifiConfigMode() {
             // Wait for 1 second to allow speaking to finish gracefully
             vTaskDelay(pdMS_TO_TICKS(1000));
 
-            // Stop any ongoing connection attempt
-            esp_timer_stop(board->connect_timer_);
             WifiManager::GetInstance().StopStation();
 
             // Enter config mode
@@ -227,8 +205,6 @@ void WifiBoard::EnterWifiConfigMode() {
         return;
     }
 
-    // Stop any ongoing connection attempt
-    esp_timer_stop(connect_timer_);
     WifiManager::GetInstance().StopStation();
 
     StartWifiConfigMode();
