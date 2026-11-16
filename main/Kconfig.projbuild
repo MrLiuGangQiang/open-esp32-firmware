@@ -2,7 +2,7 @@ menu "Xiaofan Assistant"
 
 config OTA_URL
     string "Default OTA URL"
-    default "http://10.168.120.54:8002/xiaofan/ota/"
+    default "https://frp.lfans.cn:28002/xiaofan/ota/"
     help
         The application will access this URL to check for new firmwares and server address.
 
