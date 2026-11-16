@@ -1006,6 +1006,7 @@ list(APPEND SOURCES ${BOARD_SOURCES})
 if(CONFIG_IDF_TARGET_ESP32S3 OR CONFIG_IDF_TARGET_ESP32P4 OR CONFIG_IDF_TARGET_ESP32S31)
     list(APPEND SOURCES "audio/engines/afe_audio_engine.cc")
     list(APPEND SOURCES "audio/wake_words/custom_wake_word.cc")
+    list(APPEND SOURCES "audio/wake_words/esp_wake_word.cc")
     list(APPEND SOURCES "audio/wake_words/wake_word_audio_cache.cc")
 else()
     list(APPEND SOURCES "audio/engines/lite_audio_engine.cc")
@@ -1294,9 +1295,42 @@ if(ESP_SR_COMPONENT_PATH)
     set(ESP_SR_MODEL_PATH "${ESP_SR_COMPONENT_PATH}/model")
 endif()
 
-# Bundle the branded wake-word model from the project instead of the upstream model set.
+# Bundle branded and upstream wake words in one staging tree so a build can
+# combine the project-owned Xiaofan model with stock ESP-SR WakeNet models.
 if(CONFIG_SR_WN_WN9_NIHAOXIAOFAN_TTS OR CONFIG_SR_WN_WN9S_NIHAOXIAOFAN)
-    set(ESP_SR_MODEL_PATH "${PROJECT_DIR}/components/xiaofan-models")
+    if(NOT ESP_SR_COMPONENT_PATH)
+        message(FATAL_ERROR "ESP-SR component is required for combined wake-word models")
+    endif()
+    set(XIAOFAN_WAKENET_STAGING "${CMAKE_BINARY_DIR}/xiaofan-wakenet-models")
+    file(REMOVE_RECURSE "${XIAOFAN_WAKENET_STAGING}")
+    file(MAKE_DIRECTORY "${XIAOFAN_WAKENET_STAGING}/wakenet_model")
+
+    if(CONFIG_SR_WN_WN9_NIHAOXIAOFAN_TTS)
+        file(COPY
+            "${PROJECT_DIR}/components/xiaofan-models/wakenet_model/wn9_nihaoxiaofan_tts"
+            DESTINATION "${XIAOFAN_WAKENET_STAGING}/wakenet_model")
+    endif()
+    if(CONFIG_SR_WN_WN9S_NIHAOXIAOFAN)
+        file(COPY
+            "${PROJECT_DIR}/components/xiaofan-models/wakenet_model/wn9s_nihaoxiaofan"
+            DESTINATION "${XIAOFAN_WAKENET_STAGING}/wakenet_model")
+    endif()
+    file(GLOB ESP_SR_WAKENET_MODEL_DIRS
+        LIST_DIRECTORIES true
+        "${ESP_SR_COMPONENT_PATH}/model/wakenet_model/*")
+    foreach(model_dir ${ESP_SR_WAKENET_MODEL_DIRS})
+        if(IS_DIRECTORY "${model_dir}")
+            cmake_path(GET model_dir FILENAME model_name)
+            string(TOUPPER "${model_name}" model_name_upper)
+            set(model_symbol "CONFIG_SR_WN_${model_name_upper}")
+            if(DEFINED ${model_symbol} AND ${model_symbol})
+                file(COPY "${model_dir}"
+                    DESTINATION "${XIAOFAN_WAKENET_STAGING}/wakenet_model")
+            endif()
+        endif()
+    endforeach()
+
+    set(ESP_SR_MODEL_PATH "${XIAOFAN_WAKENET_STAGING}")
 endif()
 
 # Find xiaofan-fonts component dynamically

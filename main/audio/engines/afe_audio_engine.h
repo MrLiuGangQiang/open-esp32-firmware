@@ -19,6 +19,7 @@
 #include "wake_words/wake_word_audio_cache.h"
 
 class CustomWakeWord;
+class EspWakeWord;
 
 class AfeAudioEngine : public AudioEngine {
 public:
@@ -83,6 +84,10 @@ private:
     WakeDetector wake_detector_ = WakeDetector::kNone;
 
     std::unique_ptr<CustomWakeWord> custom_wake_word_;
+    // ESP-SR exposes two Wakenet slots in one AFE instance; models beyond that
+    // run as standalone Wakenet detectors on the same AFE output.
+    std::unique_ptr<EspWakeWord> extra_wake_word_;
+    std::vector<int16_t> extra_wake_word_input_;
     std::vector<std::string> wake_words_;
     std::string last_detected_wake_word_;
     std::vector<int16_t> input_buffer_;

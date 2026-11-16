@@ -1567,6 +1567,52 @@ class LanguageBuildTests(unittest.TestCase):
                     if expected is None:
                         self.assertIn("CONFIG_WAKE_WORD_DISABLED=y", fragment)
 
+    def test_multiple_wake_words_select_one_engine_and_all_models(self):
+        with self.mock_idf() as (_, configure, validate):
+            build.build_board(
+                "bread-compact-wifi", name_filter="bread-compact-wifi",
+                language="zh-CN",
+                wake_word="nihaoxiaofan,xiaoyaxiaoya,hiwalle",
+                idf_version=(6, 1, 0),
+            )
+            fragment = configure.call_args.args[1]
+            self.assertEqual(
+                [item for item in fragment if item.startswith("CONFIG_SR_WN_")],
+                [
+                    "CONFIG_SR_WN_WN9_NIHAOXIAOFAN_TTS=y",
+                    "CONFIG_SR_WN_WN9_XIAOYAXIAOYA_TTS2=y",
+                    "CONFIG_SR_WN_WN9_HIWALLE_TTS2=y",
+                ],
+            )
+            enabled_engines = [
+                item
+                for item in fragment
+                if item.startswith("CONFIG_USE_")
+                and "WAKE_WORD" in item
+                and item.endswith("=y")
+            ]
+            self.assertEqual(enabled_engines, ["CONFIG_USE_AFE_WAKE_WORD=y"])
+            validate.assert_any_call(
+                [
+                    "CONFIG_USE_AFE_WAKE_WORD",
+                    "CONFIG_SR_WN_WN9_NIHAOXIAOFAN_TTS",
+                    "CONFIG_SR_WN_WN9_XIAOYAXIAOYA_TTS2",
+                    "CONFIG_SR_WN_WN9_HIWALLE_TTS2",
+                ],
+                "--wake-word",
+            )
+
+    def test_multiple_wake_words_require_the_afe_engine(self):
+        with self.mock_idf() as (_, configure, _):
+            with self.assertRaisesRegex(ValueError, "AFE engine"):
+                build.build_board(
+                    "magiclick/c3",
+                    name_filter="magiclick-c3",
+                    wake_word="nihaoxiaofan,hiesp",
+                    idf_version=(6, 1, 0),
+                )
+            configure.assert_not_called()
+
     def test_unavailable_wake_word_is_rejected_before_sdk_mutations(self):
         with self.mock_idf() as (prepare, configure, _):
             for board, name in (

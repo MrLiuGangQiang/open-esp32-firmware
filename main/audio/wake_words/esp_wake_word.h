@@ -5,11 +5,11 @@
 #include <esp_wn_models.h>
 #include <model_path.h>
 
+#include <atomic>
+#include <functional>
+#include <mutex>
 #include <string>
 #include <vector>
-#include <functional>
-#include <atomic>
-#include <mutex>
 
 #include "audio_codec.h"
 #include "wake_word.h"
@@ -19,7 +19,8 @@ public:
     EspWakeWord();
     ~EspWakeWord();
 
-    bool Initialize(AudioCodec* codec, srmodel_list_t* models_list);
+    bool Initialize(AudioCodec* codec, srmodel_list_t* models_list) override;
+    bool Initialize(AudioCodec* codec, srmodel_list_t* models_list, char* requested_model_name);
     void Feed(const std::vector<int16_t>& data);
     void OnWakeWordDetected(std::function<void(const std::string& wake_word)> callback);
     void Start();
@@ -31,9 +32,9 @@ public:
     std::vector<std::string> GetWakeWords() const override;
 
 private:
-    esp_wn_iface_t *wakenet_iface_ = nullptr;
-    model_iface_data_t *wakenet_data_ = nullptr;
-    srmodel_list_t *wakenet_model_ = nullptr;
+    esp_wn_iface_t* wakenet_iface_ = nullptr;
+    model_iface_data_t* wakenet_data_ = nullptr;
+    srmodel_list_t* wakenet_model_ = nullptr;
     bool owns_models_ = false;
     AudioCodec* codec_ = nullptr;
     std::atomic<bool> running_ = false;

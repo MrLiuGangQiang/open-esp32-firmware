@@ -1,11 +1,9 @@
 #include "esp_wake_word.h"
 #include <esp_log.h>
 
-
 #define TAG "EspWakeWord"
 
-EspWakeWord::EspWakeWord() {
-}
+EspWakeWord::EspWakeWord() {}
 
 EspWakeWord::~EspWakeWord() {
     if (wakenet_data_ != nullptr) {
@@ -17,6 +15,11 @@ EspWakeWord::~EspWakeWord() {
 }
 
 bool EspWakeWord::Initialize(AudioCodec* codec, srmodel_list_t* models_list) {
+    return Initialize(codec, models_list, nullptr);
+}
+
+bool EspWakeWord::Initialize(AudioCodec* codec, srmodel_list_t* models_list,
+                             char* requested_model_name) {
     codec_ = codec;
 
     if (models_list == nullptr) {
@@ -34,7 +37,13 @@ bool EspWakeWord::Initialize(AudioCodec* codec, srmodel_list_t* models_list) {
         ESP_LOGE(TAG, "No model found");
         return false;
     }
-    char *model_name = esp_srmodel_filter(wakenet_model_, ESP_WN_PREFIX, nullptr);
+    char* model_name = nullptr;
+    if (requested_model_name != nullptr &&
+        esp_srmodel_exists(wakenet_model_, const_cast<char*>(requested_model_name)) >= 0) {
+        model_name = requested_model_name;
+    } else {
+        model_name = esp_srmodel_filter(wakenet_model_, ESP_WN_PREFIX, nullptr);
+    }
     if (model_name == nullptr) {
         ESP_LOGE(TAG, "No WakeNet model found");
         return false;
@@ -61,9 +70,7 @@ void EspWakeWord::OnWakeWordDetected(std::function<void(const std::string& wake_
     wake_word_detected_callback_ = callback;
 }
 
-void EspWakeWord::Start() {
-    running_ = true;
-}
+void EspWakeWord::Start() { running_ = true; }
 
 void EspWakeWord::Stop() {
     running_ = false;
@@ -130,9 +137,6 @@ std::vector<std::string> EspWakeWord::GetWakeWords() const {
     return words;
 }
 
-void EspWakeWord::EncodeWakeWordData() {
-}
+void EspWakeWord::EncodeWakeWordData() {}
 
-bool EspWakeWord::GetWakeWordOpus(std::vector<uint8_t>& opus) {
-    return false;
-}
+bool EspWakeWord::GetWakeWordOpus(std::vector<uint8_t>& opus) { return false; }
