@@ -1,4 +1,6 @@
 tmp/
+/build/
+/build-host-tests*.log
 managed_build/
 dist/
 .vscode/
