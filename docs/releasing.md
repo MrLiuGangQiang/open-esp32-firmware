@@ -5,8 +5,8 @@ manually. It builds every release variant supported by ESP-IDF 6.1 using
 `scripts/build.py <board> --name <variant> --zip`. It does not use the incremental
 CI selection or include CI-only option variants.
 
-The release version comes from `PROJECT_VER` in the root `CMakeLists.txt`.
-Update that value before publishing another version. The workflow fixes every
+The release version is generated from the build date as `yyyy.MM.dd` (`PROJECT_VER` in the root `CMakeLists.txt`).
+Keep OTA service versions at or below that build-date format. The workflow fixes every
 checkout to the triggering commit and records the commit, SDK, board directories,
 and full variant list in `release-manifest.json`.
 

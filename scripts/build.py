@@ -7,6 +7,7 @@ import zipfile
 import argparse
 import re
 import subprocess
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Optional
 from pathlib import Path
@@ -48,12 +49,15 @@ def _emit_build_stage(stage: str) -> None:
 
 
 def get_project_version() -> Optional[str]:
-    """Read set(PROJECT_VER "x.y.z") from root CMakeLists.txt"""
+    """Return the date-based project version used by CMake."""
     with Path("CMakeLists.txt").open(encoding='utf-8') as f:
         for line in f:
+            if line.startswith("string(TIMESTAMP PROJECT_VER"):
+                return datetime.now().strftime("%Y.%m.%d")
             if line.startswith("set(PROJECT_VER"):
                 return line.split("\"")[1]
     return None
+
 
 def _get_idf_command() -> list[str]:
     """Get the command used to invoke the active ESP-IDF."""
